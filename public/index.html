@@ -60,15 +60,43 @@
     <div id="tab-clienti">
       <div class="card">
         <h3>Nuovo cliente</h3>
-        <label>Nome *</label>
+        <label>Nome / Ragione sociale *</label>
         <input type="text" id="cli-nome">
-        <label>Telefono</label>
+        <label>Telefono *</label>
         <input type="text" id="cli-telefono">
+        <label>Tipo cliente *</label>
+        <select id="cli-tipo-cliente">
+          <option value="">Seleziona...</option>
+          <option>Privato</option>
+          <option>Azienda</option>
+          <option>PA</option>
+          <option>Stampatore</option>
+          <option>Rappresentante</option>
+          <option>Rivenditore</option>
+        </select>
+        <label>Tipo relazione *</label>
+        <select id="cli-tipo-relazione">
+          <option value="">Seleziona...</option>
+          <option>Occasionale</option>
+          <option>Ricorrente</option>
+          <option>Fisso</option>
+          <option>Azienda fissa</option>
+        </select>
         <label>Email</label>
         <input type="text" id="cli-email">
-        <label>Partita IVA</label>
+        <label>WhatsApp</label>
+        <input type="text" id="cli-whatsapp">
+        <label>Settore/categoria</label>
+        <input type="text" id="cli-settore" placeholder="Per marketing mirato">
+        <label>P.IVA</label>
         <input type="text" id="cli-piva">
-        <label>Note</label>
+        <label>Codice fiscale</label>
+        <input type="text" id="cli-codice-fiscale">
+        <label>Indirizzo</label>
+        <input type="text" id="cli-indirizzo" placeholder="Solo se serve consegna">
+        <label>Data di nascita</label>
+        <input type="date" id="cli-data-nascita">
+        <label>Note interne</label>
         <textarea id="cli-note" rows="2"></textarea>
         <button class="primary" id="cli-save-btn">Salva cliente</button>
         <div id="cli-msg" class="msg hidden"></div>
@@ -76,7 +104,7 @@
       <div class="card">
         <h3>Elenco clienti</h3>
         <table>
-          <thead><tr><th>Codice</th><th>Nome</th><th>Telefono</th><th>Email</th></tr></thead>
+          <thead><tr><th>Codice</th><th>Nome</th><th>Telefono</th><th>Tipo</th><th>Relazione</th></tr></thead>
           <tbody id="clienti-tbody"></tbody>
         </table>
       </div>
@@ -175,7 +203,7 @@ async function loadClienti() {
     clientiCache = clienti;
     const tbody = document.getElementById('clienti-tbody');
     tbody.innerHTML = clienti.map(c =>
-      '<tr><td>' + (c.codice || '') + '</td><td>' + (c.nome || '') + '</td><td>' + (c.telefono || '') + '</td><td>' + (c.email || '') + '</td></tr>'
+      '<tr><td>' + (c.codice || '') + '</td><td>' + (c.nome || '') + '</td><td>' + (c.telefono || '') + '</td><td>' + (c.tipo_cliente || '') + '</td><td>' + (c.tipo_relazione || '') + '</td></tr>'
     ).join('');
     const select = document.getElementById('ord-cliente');
     select.innerHTML = clienti.map(c => '<option value="' + c.id + '">' + c.nome + '</option>').join('');
@@ -190,16 +218,29 @@ document.getElementById('cli-save-btn').addEventListener('click', async () => {
   const body = {
     nome: document.getElementById('cli-nome').value.trim(),
     telefono: document.getElementById('cli-telefono').value.trim(),
+    tipo_cliente: document.getElementById('cli-tipo-cliente').value,
+    tipo_relazione: document.getElementById('cli-tipo-relazione').value,
     email: document.getElementById('cli-email').value.trim(),
+    whatsapp: document.getElementById('cli-whatsapp').value.trim(),
+    settore: document.getElementById('cli-settore').value.trim(),
     piva: document.getElementById('cli-piva').value.trim(),
+    codice_fiscale: document.getElementById('cli-codice-fiscale').value.trim(),
+    indirizzo: document.getElementById('cli-indirizzo').value.trim(),
+    data_nascita: document.getElementById('cli-data-nascita').value || null,
     note: document.getElementById('cli-note').value
   };
-  if (!body.nome) { showMsg(msg, 'Il nome è obbligatorio', false); return; }
-  if (body.telefono && !/^[0-9+\s()-]{6,20}$/.test(body.telefono)) {
+  if (!body.nome) { showMsg(msg, 'Il nome / ragione sociale è obbligatorio', false); return; }
+  if (!body.telefono) { showMsg(msg, 'Il telefono è obbligatorio', false); return; }
+  if (!/^[0-9+\s()-]{6,20}$/.test(body.telefono)) {
     showMsg(msg, 'Il telefono può contenere solo numeri, spazi, + e -', false); return;
   }
+  if (!body.tipo_cliente) { showMsg(msg, 'Seleziona il tipo cliente', false); return; }
+  if (!body.tipo_relazione) { showMsg(msg, 'Seleziona il tipo relazione', false); return; }
   if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
     showMsg(msg, 'Email non valida (formato atteso: nome@dominio.it)', false); return;
+  }
+  if (body.whatsapp && !/^[0-9+\s()-]{6,20}$/.test(body.whatsapp)) {
+    showMsg(msg, 'Il numero WhatsApp può contenere solo numeri, spazi, + e -', false); return;
   }
   if (body.piva && !/^[0-9]{11}$/.test(body.piva)) {
     showMsg(msg, 'La Partita IVA deve contenere esattamente 11 numeri', false); return;
@@ -209,8 +250,15 @@ document.getElementById('cli-save-btn').addEventListener('click', async () => {
     showMsg(msg, 'Cliente salvato correttamente', true);
     document.getElementById('cli-nome').value = '';
     document.getElementById('cli-telefono').value = '';
+    document.getElementById('cli-tipo-cliente').value = '';
+    document.getElementById('cli-tipo-relazione').value = '';
     document.getElementById('cli-email').value = '';
+    document.getElementById('cli-whatsapp').value = '';
+    document.getElementById('cli-settore').value = '';
     document.getElementById('cli-piva').value = '';
+    document.getElementById('cli-codice-fiscale').value = '';
+    document.getElementById('cli-indirizzo').value = '';
+    document.getElementById('cli-data-nascita').value = '';
     document.getElementById('cli-note').value = '';
     loadClienti();
   } catch (err) {
