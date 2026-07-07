@@ -188,13 +188,22 @@ document.getElementById('cli-save-btn').addEventListener('click', async () => {
   const msg = document.getElementById('cli-msg');
   msg.classList.remove('hidden');
   const body = {
-    nome: document.getElementById('cli-nome').value,
-    telefono: document.getElementById('cli-telefono').value,
-    email: document.getElementById('cli-email').value,
-    piva: document.getElementById('cli-piva').value,
+    nome: document.getElementById('cli-nome').value.trim(),
+    telefono: document.getElementById('cli-telefono').value.trim(),
+    email: document.getElementById('cli-email').value.trim(),
+    piva: document.getElementById('cli-piva').value.trim(),
     note: document.getElementById('cli-note').value
   };
   if (!body.nome) { showMsg(msg, 'Il nome è obbligatorio', false); return; }
+  if (body.telefono && !/^[0-9+\s()-]{6,20}$/.test(body.telefono)) {
+    showMsg(msg, 'Il telefono può contenere solo numeri, spazi, + e -', false); return;
+  }
+  if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+    showMsg(msg, 'Email non valida (formato atteso: nome@dominio.it)', false); return;
+  }
+  if (body.piva && !/^[0-9]{11}$/.test(body.piva)) {
+    showMsg(msg, 'La Partita IVA deve contenere esattamente 11 numeri', false); return;
+  }
   try {
     await api('/api/clienti', { method: 'POST', body: JSON.stringify(body) });
     showMsg(msg, 'Cliente salvato correttamente', true);
