@@ -12,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static('public'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'C PRINT Gestionale', version: '1.0.0' }));
 
