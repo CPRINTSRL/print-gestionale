@@ -48,10 +48,12 @@ router.post('/', async (req, res) => {
     const count = await client.query('SELECT COUNT(*) FROM ordini');
     const numero = `OS-${new Date().getFullYear()}-${String(parseInt(count.rows[0].count) + 1).padStart(4, '0')}`;
 
+    const totaleOrdine = (righe || []).reduce((sum, r) => sum + (parseFloat(r.totale) || 0), 0);
+
     const ordine = await client.query(
-      `INSERT INTO ordini (numero, cliente_id, cliente_nome, cliente_telefono, urgente, note, assegnato_a, data_ritiro_prevista, ritiro_concordato, operatore_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [numero, cliente_id, cliente_nome, cliente_telefono, urgente, note, assegnato_a, data_ritiro_prevista, ritiro_concordato, req.user.id]
+      `INSERT INTO ordini (numero, cliente_id, cliente_nome, cliente_telefono, urgente, note, assegnato_a, data_ritiro_prevista, ritiro_concordato, operatore_id, totale)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [numero, cliente_id, cliente_nome, cliente_telefono, urgente, note, assegnato_a, data_ritiro_prevista, ritiro_concordato, req.user.id, totaleOrdine]
     );
 
     if (righe?.length) {
