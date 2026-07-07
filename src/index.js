@@ -5,6 +5,7 @@ import authRoutes from './routes/auth.js';
 import clientiRoutes from './routes/clienti.js';
 import ordiniRoutes from './routes/ordini.js';
 import categorieRoutes from './routes/categorie.js';
+import utentiRoutes from './routes/utenti.js';
 
 dotenv.config();
 
@@ -21,5 +22,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/clienti', clientiRoutes);
 app.use('/api/ordini', ordiniRoutes);
 app.use('/api/categorie', categorieRoutes);
+app.use('/api/utenti', utentiRoutes);
 
 app.listen(PORT, () => console.log(`C PRINT Gestionale in ascolto su porta ${PORT}`));
