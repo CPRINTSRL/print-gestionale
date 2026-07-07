@@ -41,7 +41,7 @@ router.get('/:id', async (req, res) => {
 // CREA CLIENTE
 router.post('/', async (req, res) => {
   try {
-    const { nome, telefono, email, tipo_cliente, tipo_relazione, settore, piva, codice_fiscale, indirizzo, data_nascita, note } = req.body;
+    const { nome, telefono, email, whatsapp, tipo_cliente, tipo_relazione, settore, piva, codice_fiscale, indirizzo, data_nascita, note } = req.body;
     
     // Controllo duplicati
     if (telefono) {
@@ -58,9 +58,9 @@ router.post('/', async (req, res) => {
     const codice = `CP${String(parseInt(count.rows[0].count) + 1).padStart(4, '0')}`;
 
     const result = await pool.query(
-      `INSERT INTO clienti (codice, nome, telefono, email, tipo_cliente, tipo_relazione, settore, piva, codice_fiscale, indirizzo, data_nascita, note)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [codice, nome, telefono, email, tipo_cliente, tipo_relazione, settore, piva, codice_fiscale, indirizzo, data_nascita, note]
+      `INSERT INTO clienti (codice, nome, telefono, email, whatsapp, tipo_cliente, tipo_relazione, settore, piva, codice_fiscale, indirizzo, data_nascita, note)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [codice, nome, telefono, email, whatsapp, tipo_cliente, tipo_relazione, settore, piva, codice_fiscale, indirizzo, data_nascita, note]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -71,11 +71,11 @@ router.post('/', async (req, res) => {
 // AGGIORNA CLIENTE
 router.put('/:id', async (req, res) => {
   try {
-    const { nome, telefono, email, tipo_cliente, tipo_relazione, settore, piva, codice_fiscale, indirizzo, data_nascita, note } = req.body;
+    const { nome, telefono, email, whatsapp, tipo_cliente, tipo_relazione, settore, piva, codice_fiscale, indirizzo, data_nascita, note } = req.body;
     const result = await pool.query(
-      `UPDATE clienti SET nome=$1, telefono=$2, email=$3, tipo_cliente=$4, tipo_relazione=$5, settore=$6, piva=$7, codice_fiscale=$8, indirizzo=$9, data_nascita=$10, note=$11, updated_at=NOW()
-       WHERE id=$12 RETURNING *`,
-      [nome, telefono, email, tipo_cliente, tipo_relazione, settore, piva, codice_fiscale, indirizzo, data_nascita, note, req.params.id]
+      `UPDATE clienti SET nome=$1, telefono=$2, email=$3, whatsapp=$4, tipo_cliente=$5, tipo_relazione=$6, settore=$7, piva=$8, codice_fiscale=$9, indirizzo=$10, data_nascita=$11, note=$12, updated_at=NOW()
+       WHERE id=$13 RETURNING *`,
+      [nome, telefono, email, whatsapp, tipo_cliente, tipo_relazione, settore, piva, codice_fiscale, indirizzo, data_nascita, note, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) {
