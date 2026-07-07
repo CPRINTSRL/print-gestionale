@@ -29,6 +29,14 @@
   .msg.ok { background: #eaf3de; color: #3b6d11; }
   .msg.err { background: #fcebeb; color: #a32d2d; }
   #login-screen { max-width: 360px; margin: 80px auto; }
+  .cat-tile { border: 2px solid #e0e0dc; border-radius: 8px; padding: 10px 14px; cursor: pointer; font-size: 13px; text-align: center; background: white; user-select: none; }
+  .cat-tile:hover { border-color: #d85a30; }
+  .cat-tile .icon { font-size: 22px; display: block; }
+  .riga-item { background: #faf9f7; border: 1px solid #eee; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .riga-item .riga-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 13px; margin-bottom: 8px; }
+  .riga-item .riga-fields { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px; }
+  .riga-item .riga-fields label { margin: 0 0 3px; }
+  .remove-riga { background: none; border: none; color: #a32d2d; cursor: pointer; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -113,24 +121,40 @@
     <div id="tab-ordini" class="hidden">
       <div class="card">
         <h3>Nuovo ordine</h3>
-        <label>Cliente *</label>
-        <select id="ord-cliente"></select>
-        <label>Descrizione lavorazione</label>
-        <input type="text" id="ord-descrizione" placeholder="Es. Biglietti da visita 500pz">
-        <label>Quantità</label>
-        <input type="number" id="ord-quantita" value="1">
-        <label>Prezzo unitario (euro)</label>
-        <input type="number" step="0.01" id="ord-prezzo" value="0">
+
+        <label>Cerca cliente (nome, telefono, email, P.IVA, codice)</label>
+        <input type="text" id="ord-cliente-search" placeholder="Digita per filtrare...">
+        <select id="ord-cliente" size="4" style="margin-top:6px;"></select>
+
+        <label style="margin-top:16px;">1. Scegli categoria/e lavoro</label>
+        <div id="categorie-grid" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;"></div>
+
+        <div id="righe-container" style="margin-top:16px;"></div>
+
+        <div id="righe-elenco" style="margin-top:16px;"></div>
+
+        <hr style="margin:20px 0; border:none; border-top:1px solid #eee;">
+
+        <label>Data ritiro presunta</label>
+        <input type="date" id="ord-data-ritiro">
+        <label><input type="checkbox" id="ord-concordato" style="width:auto; display:inline-block;"> Concordato con cliente (senza data fissa)</label>
+
+        <label>Assegna a operatore</label>
+        <select id="ord-assegnato"></select>
+
         <label><input type="checkbox" id="ord-urgente" style="width:auto; display:inline-block;"> Urgente</label>
-        <label>Note</label>
+        <label>Note generali</label>
         <textarea id="ord-note" rows="2"></textarea>
+
+        <div style="margin-top:10px; font-size:16px; font-weight:600;">Totale ordine: € <span id="ord-totale-corrente">0.00</span></div>
+
         <button class="primary" id="ord-save-btn">Salva ordine</button>
         <div id="ord-msg" class="msg hidden"></div>
       </div>
       <div class="card">
         <h3>Elenco ordini</h3>
         <table>
-          <thead><tr><th>Numero</th><th>Cliente</th><th>Stato</th><th>Urgente</th></tr></thead>
+          <thead><tr><th>Numero</th><th>Cliente</th><th>Stato</th><th>Totale</th><th>Urgente</th></tr></thead>
           <tbody id="ordini-tbody"></tbody>
         </table>
       </div>
@@ -163,6 +187,9 @@ function showApp() {
   document.getElementById('user-label').textContent = (user.nome || '') + ' (' + (user.ruolo || '') + ')';
   loadClienti();
   loadOrdini();
+  loadCategorie();
+  loadOperatori();
+  renderRighe();
 }
 
 document.getElementById('login-btn').addEventListener('click', async () => {
@@ -279,39 +306,167 @@ async function loadOrdini() {
   }
 }
 
+let categorieCache = [];
+let operatoriCache = [];
+let righeOrdine = []; // righe dell'ordine in costruzione
+
+async function loadCategorie() {
+  try {
+    categorieCache = await api('/api/categorie');
+    const grid = document.getElementById('categorie-grid');
+    grid.innerHTML = categorieCache.map(c =>
+      '<div class="cat-tile" data-id="' + c.id + '"><span class="icon">' + (c.icona || '📦') + '</span>' + c.nome + '</div>'
+    ).join('');
+    grid.querySelectorAll('.cat-tile').forEach(tile => {
+      tile.addEventListener('click', () => aggiungiRiga(tile.dataset.id));
+    });
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function loadOperatori() {
+  try {
+    operatoriCache = await api('/api/utenti');
+    const select = document.getElementById('ord-assegnato');
+    const me = JSON.parse(localStorage.getItem('cp_user') || '{}');
+    select.innerHTML = operatoriCache.map(u =>
+      '<option value="' + u.id + '"' + (u.id === me.id ? ' selected' : '') + '>' + u.nome + (u.id === me.id ? ' (io)' : '') + '</option>'
+    ).join('');
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function aggiungiRiga(categoriaId) {
+  const categoria = categorieCache.find(c => String(c.id) === String(categoriaId));
+  righeOrdine.push({
+    categoria_id: categoriaId,
+    categoria_nome: categoria ? categoria.nome : '',
+    descrizione: '',
+    quantita: 1,
+    unita: 'pz',
+    prezzo_unitario: 0,
+    sconto_euro: 0,
+    note: ''
+  });
+  renderRighe();
+}
+
+function renderRighe() {
+  const container = document.getElementById('righe-container');
+  if (righeOrdine.length === 0) {
+    container.innerHTML = '<p style="color:#888; font-size:13px;">Nessun articolo aggiunto. Clicca una categoria qui sopra per iniziare.</p>';
+  } else {
+    container.innerHTML = '<label>2. Articoli inseriti</label>' + righeOrdine.map((r, i) => `
+      <div class="riga-item">
+        <div class="riga-header"><span>${r.categoria_nome}</span><button class="remove-riga" data-i="${i}">Rimuovi</button></div>
+        <div class="riga-fields">
+          <div><label>Descrizione</label><input type="text" data-field="descrizione" data-i="${i}" value="${r.descrizione}" placeholder="Es. Biglietti da visita 500pz"></div>
+          <div><label>Quantità</label><input type="number" data-field="quantita" data-i="${i}" value="${r.quantita}" min="1"></div>
+          <div><label>Prezzo unitario €</label><input type="number" step="0.01" data-field="prezzo_unitario" data-i="${i}" value="${r.prezzo_unitario}"></div>
+          <div><label>Sconto € (fisso)</label><input type="number" step="0.01" data-field="sconto_euro" data-i="${i}" value="${r.sconto_euro}"></div>
+        </div>
+      </div>
+    `).join('');
+    container.querySelectorAll('input[data-field]').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const i = e.target.dataset.i;
+        const field = e.target.dataset.field;
+        righeOrdine[i][field] = field === 'descrizione' ? e.target.value : parseFloat(e.target.value) || 0;
+        aggiornaTotale();
+      });
+    });
+    container.querySelectorAll('.remove-riga').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        righeOrdine.splice(e.target.dataset.i, 1);
+        renderRighe();
+        aggiornaTotale();
+      });
+    });
+  }
+  aggiornaTotale();
+}
+
+function aggiornaTotale() {
+  const totale = righeOrdine.reduce((sum, r) => sum + (r.quantita * r.prezzo_unitario - r.sconto_euro), 0);
+  document.getElementById('ord-totale-corrente').textContent = totale.toFixed(2);
+}
+
+document.getElementById('ord-cliente-search').addEventListener('input', (e) => {
+  const term = e.target.value.toLowerCase();
+  const select = document.getElementById('ord-cliente');
+  const filtered = clientiCache.filter(c =>
+    (c.nome || '').toLowerCase().includes(term) ||
+    (c.telefono || '').toLowerCase().includes(term) ||
+    (c.email || '').toLowerCase().includes(term) ||
+    (c.piva || '').toLowerCase().includes(term) ||
+    (c.codice || '').toLowerCase().includes(term)
+  );
+  select.innerHTML = filtered.map(c => '<option value="' + c.id + '">' + c.nome + ' — ' + (c.telefono || '') + '</option>').join('');
+});
+
+document.getElementById('ord-concordato').addEventListener('change', (e) => {
+  document.getElementById('ord-data-ritiro').disabled = e.target.checked;
+  if (e.target.checked) document.getElementById('ord-data-ritiro').value = '';
+});
+
+async function loadOrdini() {
+  try {
+    const ordini = await api('/api/ordini');
+    const tbody = document.getElementById('ordini-tbody');
+    tbody.innerHTML = ordini.map(o =>
+      '<tr><td>' + (o.numero || '') + '</td><td>' + (o.cliente_nome_full || o.cliente_nome || '') + '</td><td>' + (o.stato || '') + '</td><td>€ ' +
+      (parseFloat(o.totale) || 0).toFixed(2) + '</td><td>' + (o.urgente ? '<span class="badge urgente">Sì</span>' : 'No') + '</td></tr>'
+    ).join('');
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 document.getElementById('ord-save-btn').addEventListener('click', async () => {
   const msg = document.getElementById('ord-msg');
   msg.classList.remove('hidden');
   const clienteId = document.getElementById('ord-cliente').value;
   const cliente = clientiCache.find(c => String(c.id) === String(clienteId));
-  const quantita = parseFloat(document.getElementById('ord-quantita').value) || 1;
-  const prezzo = parseFloat(document.getElementById('ord-prezzo').value) || 0;
+  const concordato = document.getElementById('ord-concordato').checked;
+  const dataRitiro = document.getElementById('ord-data-ritiro').value;
+
+  if (!clienteId) { showMsg(msg, 'Seleziona un cliente dalla lista', false); return; }
+  if (righeOrdine.length === 0) { showMsg(msg, 'Aggiungi almeno un articolo scegliendo una categoria', false); return; }
+  if (!concordato && !dataRitiro) { showMsg(msg, 'Inserisci una data di ritiro presunta oppure spunta "Concordato con cliente"', false); return; }
+
   const body = {
-    cliente_id: clienteId || null,
+    cliente_id: clienteId,
     cliente_nome: cliente ? cliente.nome : '',
     cliente_telefono: cliente ? cliente.telefono : '',
     urgente: document.getElementById('ord-urgente').checked,
     note: document.getElementById('ord-note').value,
-    righe: [{
-      categoria_id: null,
-      descrizione: document.getElementById('ord-descrizione').value,
-      quantita: quantita,
-      unita: 'pz',
-      prezzo_unitario: prezzo,
-      sconto_euro: 0,
-      totale: quantita * prezzo,
-      note: ''
-    }]
+    assegnato_a: document.getElementById('ord-assegnato').value || null,
+    data_ritiro_prevista: concordato ? null : dataRitiro,
+    ritiro_concordato: concordato,
+    righe: righeOrdine.map(r => ({
+      categoria_id: r.categoria_id,
+      descrizione: r.descrizione,
+      quantita: r.quantita,
+      unita: r.unita,
+      prezzo_unitario: r.prezzo_unitario,
+      sconto_euro: r.sconto_euro,
+      totale: r.quantita * r.prezzo_unitario - r.sconto_euro,
+      note: r.note
+    }))
   };
-  if (!clienteId) { showMsg(msg, 'Seleziona un cliente', false); return; }
+
   try {
-    await api('/api/ordini', { method: 'POST', body: JSON.stringify(body) });
-    showMsg(msg, 'Ordine salvato correttamente', true);
-    document.getElementById('ord-descrizione').value = '';
-    document.getElementById('ord-quantita').value = '1';
-    document.getElementById('ord-prezzo').value = '0';
+    const created = await api('/api/ordini', { method: 'POST', body: JSON.stringify(body) });
+    showMsg(msg, 'Ordine ' + created.numero + ' salvato correttamente', true);
+    righeOrdine = [];
+    renderRighe();
     document.getElementById('ord-note').value = '';
     document.getElementById('ord-urgente').checked = false;
+    document.getElementById('ord-data-ritiro').value = '';
+    document.getElementById('ord-concordato').checked = false;
+    document.getElementById('ord-cliente-search').value = '';
     loadOrdini();
   } catch (err) {
     showMsg(msg, err.message, false);
